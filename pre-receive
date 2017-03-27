@@ -1,0 +1,162 @@
+#!/bin/bash
+
+# semver
+function semverParseInto() {
+    local RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)'
+    #MAJOR
+    eval $2=`echo $1 | sed -e "s#$RE#\1#"`
+    #MINOR
+    eval $3=`echo $1 | sed -e "s#$RE#\2#"`
+    #MINOR
+    eval $4=`echo $1 | sed -e "s#$RE#\3#"`
+    #SPECIAL
+    eval $5=`echo $1 | sed -e "s#$RE#\4#"`
+}
+
+function semverEQ() {
+    local MAJOR_A=0
+    local MINOR_A=0
+    local PATCH_A=0
+    local SPECIAL_A=0
+
+    local MAJOR_B=0
+    local MINOR_B=0
+    local PATCH_B=0
+    local SPECIAL_B=0
+
+    semverParseInto $1 MAJOR_A MINOR_A PATCH_A SPECIAL_A
+    semverParseInto $2 MAJOR_B MINOR_B PATCH_B SPECIAL_B
+
+    if [ $MAJOR_A -ne $MAJOR_B ]; then
+        return 1
+    fi
+
+    if [ $MINOR_A -ne $MINOR_B ]; then
+        return 1
+    fi
+
+    if [ $PATCH_A -ne $PATCH_B ]; then
+        return 1
+    fi
+
+    if [[ "_$SPECIAL_A" != "_$SPECIAL_B" ]]; then
+        return 1
+    fi
+
+
+    return 0
+
+}
+
+function semverLT() {
+    local MAJOR_A=0
+    local MINOR_A=0
+    local PATCH_A=0
+    local SPECIAL_A=0
+
+    local MAJOR_B=0
+    local MINOR_B=0
+    local PATCH_B=0
+    local SPECIAL_B=0
+
+    semverParseInto $1 MAJOR_A MINOR_A PATCH_A SPECIAL_A
+    semverParseInto $2 MAJOR_B MINOR_B PATCH_B SPECIAL_B
+
+    if [ $MAJOR_A -lt $MAJOR_B ]; then
+        return 0
+    fi
+
+    if [[ $MAJOR_A -le $MAJOR_B  && $MINOR_A -lt $MINOR_B ]]; then
+        return 0
+    fi
+    
+    if [[ $MAJOR_A -le $MAJOR_B  && $MINOR_A -le $MINOR_B && $PATCH_A -lt $PATCH_B ]]; then
+        return 0
+    fi
+
+    if [[ "_$SPECIAL_A"  == "_" ]] && [[ "_$SPECIAL_B"  == "_" ]] ; then
+        return 1
+    fi
+    if [[ "_$SPECIAL_A"  == "_" ]] && [[ "_$SPECIAL_B"  != "_" ]] ; then
+        return 1
+    fi
+    if [[ "_$SPECIAL_A"  != "_" ]] && [[ "_$SPECIAL_B"  == "_" ]] ; then
+        return 0
+    fi
+
+    if [[ "_$SPECIAL_A" < "_$SPECIAL_B" ]]; then
+        return 0
+    fi
+
+    return 1
+
+}
+
+function semverGT() {
+    semverEQ $1 $2
+    local EQ=$?
+
+    semverLT $1 $2
+    local LT=$?
+
+    if [ $EQ -ne 0 ] && [ $LT -ne 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+function semverGE() {
+    semverLT $1 $2
+    local LT=$?
+
+    if [ $LT -ne 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+NULL_SHA1="0000000000000000000000000000000000000000" # 40 zeros
+INSTALL_TIP="The project has not installed"
+ERROR_TIP="Please install them using cmd: npm install [package]@latest --save-dev"
+re='\([^0-9]*[0-9]*[.][0-9]*[.][0-9]*[0-9A-Za-z-]*\)'
+
+while read oldrev newrev ref
+do
+    #delete remote branch
+    if [ "${newrev}" == "${NULL_SHA1}" ]; then
+      exit 0
+    fi
+
+    result=0
+    package="$(git cat-file blob $newrev:package.json)"
+    echo "$package"
+    git_client_hook=$(echo $package | grep -c '"git-client-hook":')
+    npm_client_hook=$(echo "$package" | grep -c '"@mtfe/npm-client-hook":')
+    git_client_hook_line=$(git cat-file blob $newrev:package.json | grep -e '"git-client-hook":')
+
+    if [ ${git_client_hook} -le 0 -a ${npm_client_hook} -le 0 ]; then
+      echo "${INSTALL_TIP} git-client-hook & @mtfe/npm-client-hook ❌ "
+    elif [ ${git_client_hook} -le 0 ]; then
+      echo "${INSTALL_TIP} git-client-hook ❌ "
+    elif [ ${npm_client_hook} -le 0 ]; then
+      echo "${INSTALL_TIP} @mtfe/npm-client-hook ❌ "
+    else
+      result=0
+      echo $git_client_hook_line
+      version=`echo $git_client_hook_line |\
+        grep -ioh '[^0-9]\?[0-9]*\.[0-9]\+\.[0-9]*[0-9a-z-]*' |\
+        head -n 1`
+      echo "$version"
+      semverParseInto $version MAJOR_A MINOR_A PATCH_A SPECIAL_A
+      echo "$MAJOR_A $MINOR_A $PATCH_A $SPECIAL_A"
+    fi
+    if [ ${git_client_hook} -le 0 -o ${npm_client_hook} -le 0 ]; then
+      echo "${ERROR_TIP}"
+      result=1
+    fi
+    exit 1
+    exit ${result}
+done
+
