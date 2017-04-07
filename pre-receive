@@ -77,7 +77,6 @@ check_semver()
 NULL_SHA1="0000000000000000000000000000000000000000" # 40 zeros
 INSTALL_TIP="The project has not installed"
 ERROR_TIP="Please install them using cmd: npm install [package]@latest --save-dev"
-re='\([^0-9]*[0-9]*[.][0-9]*[.][0-9]*[0-9A-Za-z-]*\)'
 
 while read oldrev newrev ref
 do
