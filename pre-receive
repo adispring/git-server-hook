@@ -63,12 +63,12 @@ check_semver()
     local expected_version=$2
     local name=`echo $1 | sed -E "s/\"([^\"]+)\":.*/\\1/"`
     local version=`echo $1 |\
-      grep -ioh '[0-9]\+\.[0-9]\+\.[0-9]\+[0-9A-Za-z\.+-]*' |\
+      grep -ioh '[0-9]\+\.[0-9]\+\.[0-9]\+[0-9A-Za-z.+-]*' |\
       head -n 1`
     compare_result=$(compare-version "$version" "$expected_version")
     if [[ $compare_result -lt 0 ]]
     then
-      echo "*** \"$name\" Current version: $version; Expected version: $expected_version. Please update it! *** 🔧 "
+      echo "*** \"$name\" Current version: $version; Expected version: $expected_version. Please update it! ***"
       exit 1
     fi
 }
@@ -87,21 +87,21 @@ do
 
     result=0
     package="$(git cat-file blob $newrev:package.json)"
+    yarn_flag=$(git cat-file -e $newrev:yarn.lock; echo $?)
+
     git_client_hook=$(echo $package | grep -c '"git-client-hook":')
     npm_client_hook=$(echo "$package" | grep -c '"@mtfe/npm-client-hook":')
     git_client_hook_line=$(git cat-file blob $newrev:package.json | grep -e '"git-client-hook":')
 
-    if [ ${git_client_hook} -le 0 -a ${npm_client_hook} -le 0 ]; then
-      echo "${INSTALL_TIP} git-client-hook & @mtfe/npm-client-hook ❌ "
-    elif [ ${git_client_hook} -le 0 ]; then
+    if [ ${git_client_hook} -le 0 ]; then
       echo "${INSTALL_TIP} git-client-hook ❌ "
-    elif [ ${npm_client_hook} -le 0 ]; then
-      echo "${INSTALL_TIP} @mtfe/npm-client-hook ❌ "
-    else
-      result=0
-    fi
-    if [ ${git_client_hook} -le 0 -o ${npm_client_hook} -le 0 ]; then
       echo "${ERROR_TIP}"
+      result=1
+    fi
+    if [ $yarn_flag -ne 0 -a ${npm_client_hook} -le 0 ]; then
+      echo "${INSTALL_TIP} @mtfe/npm-client-hook ❌ "
+      echo "${ERROR_TIP}"
+      echo "Or using \"yarn\" to manage your project node modules."
       result=1
     fi
 
