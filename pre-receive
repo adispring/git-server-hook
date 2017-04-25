@@ -87,7 +87,7 @@ do
 
     result=0
     package="$(git cat-file blob $newrev:package.json)"
-    yarn_flag=$(git cat-file -e $newrev:yarn.lock; echo $?)
+    yarn_flag=$(git cat-file -e $newrev:yarn.lock 2> /dev/null; echo $?)
 
     git_client_hook=$(echo $package | grep -c '"git-client-hook":')
     npm_client_hook=$(echo "$package" | grep -c '"@mtfe/npm-client-hook":')
